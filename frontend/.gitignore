@@ -1,0 +1,32 @@
+# # Ficheros de entorno (¡MUY IMPORTANTE!)
+# Ignora todos los ficheros .env en cualquier carpeta del proyecto.
+.env
+.env.*
+
+# # Dependencias
+# Ignora las carpetas de node_modules de ambos proyectos.
+/backend/node_modules
+/frontend/node_modules
+
+# # Ficheros de build del frontend
+# Estos ficheros se generan automáticamente al construir la aplicación.
+/frontend/dist
+/frontend/.vite
+
+# # Logs de errores
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# # Ficheros del sistema operativo
+.DS_Store
+Thumbs.db
+
+# # Ficheros de configuración de IDEs y editores
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?

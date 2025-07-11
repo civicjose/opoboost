@@ -5,6 +5,7 @@ const {
   listTestDefsByCat,
   getTestDefinitionById,
   createTestDefinition,
+  createTest,
   importQuestionsToTest
 } = require('../controllers/testController')
 
@@ -32,6 +33,12 @@ router.post(
   auth,
   role(['profesor','administrador']),
   importQuestionsToTest
+)
+
+router.post(
+  '/random',
+  auth,
+  createTest
 )
 
 module.exports = router

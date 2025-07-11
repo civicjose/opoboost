@@ -1,20 +1,8 @@
+// frontend/src/api/questions.js
 import api from './auth';
 
-// Topics
-export const getTopics = () =>
-  api.get('/questions/topics');
-
-export const getQuestionsByTopic = topicId =>
-  api.get(`/questions/topics/${encodeURIComponent(topicId)}`);
-
-export const seedTopics = () =>
-  api.post('/questions/seed');
-
-export const deleteTopicApi = topicId =>
-  api.delete(`/questions/topics/${encodeURIComponent(topicId)}`);
-
-export const updateTopicTitle = (topicId, data) =>
-  api.put(`/questions/topics/${encodeURIComponent(topicId)}`, data);
+// Ya no necesitamos las funciones relacionadas con topics,
+// así que las eliminamos, dejando solo las de preguntas individuales.
 
 // Preguntas
 export const createQuestion = question =>
@@ -23,7 +11,7 @@ export const createQuestion = question =>
 export const updateQuestion = (questionId, data) =>
   api.put(`/questions/${encodeURIComponent(questionId)}`, data);
 
-// Para ManageTopics.jsx
+// Para ManageTopics.jsx (ahora obsoleto, pero lo dejamos por si se usa en otro sitio)
 export const deleteQuestionApi = questionId =>
   api.delete(`/questions/${encodeURIComponent(questionId)}`);
 

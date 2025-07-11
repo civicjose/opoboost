@@ -1,3 +1,4 @@
+// backend/models/Attempt.js
 const mongoose = require('mongoose');
 
 const AnswerSchema = new mongoose.Schema({
@@ -12,7 +13,8 @@ const AttemptSchema = new mongoose.Schema({
   aciertos: { type: Number, required: true },
   fallos:   { type: Number, required: true },
   vacias:   { type: Number, required: true },
-  score:    { type: Number, required: true }
+  score:    { type: Number, required: true },
+  duration: { type: Number, default: 0 } // Duración en minutos
 }, { timestamps: true });
 
 module.exports = mongoose.model('Attempt', AttemptSchema);

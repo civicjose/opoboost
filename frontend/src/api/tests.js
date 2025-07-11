@@ -22,3 +22,6 @@ export const importQuestionsToTest = (defId, questionsArray) =>
 // Enviar un intento de test
 export const submitTest = payload =>
   api.post('/attempts', payload);
+
+export const createTest = (limit = 10) =>
+  api.post('/tests/random', { limit });

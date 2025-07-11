@@ -1,158 +1,113 @@
-// src/pages/Test.jsx
-import { useState, useEffect } from 'react';
-import {
-  createTest,
-  createTestByTopic,
-  submitTest
-} from '../api/tests';
-import { getTopics } from '../api/questions';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+// frontend/src/pages/Test.jsx
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { createTest } from '../api/tests';
+import { BookOpen, Clock, Hash } from 'lucide-react';
 
 export default function Test() {
-  // Estado global
-  const [topics, setTopics]       = useState([]);
-  const [mode, setMode]           = useState('select'); // 'select', 'quiz'
-  const [selectedTopic, setTopic] = useState(null);
-  const [testId, setTestId]       = useState(null);
-  const [questions, setQuestions] = useState([]);
-  const [answers, setAnswers]     = useState({});
-  const [step, setStep]           = useState(0);
+  const [numQuestions, setNumQuestions] = useState(10);
+  const [timeHours, setTimeHours] = useState(0);
+  const [timeMinutes, setTimeMinutes] = useState(15);
+  const navigate = useNavigate();
 
-  // 1. Cargo la lista de temas al montar
-  useEffect(() => {
-    getTopics().then(res => setTopics(res.data));
-  }, []);
+  const startRandomTest = async () => {
+    if (numQuestions <= 0) {
+      alert('El número de preguntas debe ser mayor que cero.');
+      return;
+    }
+    const totalMinutes = (timeHours * 60) + timeMinutes;
+    if (totalMinutes <= 0) {
+      alert('La duración del test debe ser mayor que cero.');
+      return;
+    }
 
-  // 2. Cuando el alumno elige “Test aleatorio” sin tema
-  const startRandom = async () => {
-    const res = await createTest();
-    setTestId(res.data.testId);
-    setQuestions(res.data.questions);
-    setMode('quiz');
+    try {
+      const res = await createTest(numQuestions);
+      if (!res.data || res.data.questions.length === 0) {
+        alert('No se encontraron suficientes preguntas para generar el simulacro.');
+        return;
+      }
+      
+      navigate(`/simulacro/${res.data._id}`, { 
+        state: { 
+          testData: res.data,
+          duration: totalMinutes 
+        } 
+      });
+    } catch (error) {
+        const errorMessage = error.response?.data?.message || 'Error al crear el simulacro. Asegúrate de que haya preguntas en la base de datos.';
+        alert(errorMessage);
+    }
   };
-
-  // 3. Cuando elige un tema concreto
-  const startByTopic = async topic => {
-    const res = await createTestByTopic(topic);
-    setTestId(res.data.testId);
-    setQuestions(res.data.questions);
-    setMode('quiz');
-  };
-
-  // 4. Navegación del cuestionario
-  const next = () => setStep(s => Math.min(s + 1, questions.length - 1));
-  const prev = () => setStep(s => Math.max(s - 1, 0));
-
-  // 5. Enviar respuestas
-  const onSubmit = async () => {
-    const formatted = Object.entries(answers).map(([q, a]) => ({
-      question: q,
-      answer: Number(a)
-    }));
-    const res = await submitTest({ testId, answers: formatted });
-    alert(`Puntuación: ${res.data.score} / ${res.data.maxScore}`);
-    // Reset parcial
-    setMode('select');
-    setTopic(null);
-    setTestId(null);
-    setQuestions([]);
-    setAnswers({});
-    setStep(0);
-  };
-
-  // ** UI **  
-  if (mode === 'select') {
-    return (
-      <div className="pt-24 max-w-3xl mx-auto p-4">
-        <h1 className="text-3xl font-bold text-gray-800 mb-6">Elige tu simulacro</h1>
-        <div className="space-y-4">
-          <button
-            onClick={startRandom}
-            className="w-full bg-secondary text-white py-3 rounded-lg shadow-card hover:bg-secondary/90 transition"
-          >
-            Test Aleatorio (10 preguntas)
-          </button>
-          <div>
-            <h2 className="text-xl font-semibold text-gray-700 mb-2">O por tema:</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {topics.map(t => (
-                <button
-                  key={t._id}
-                  onClick={() => startByTopic(t._id)}
-                  className="bg-white p-4 rounded-lg shadow-card hover:shadow-lg transition text-gray-800 text-left"
-                >
-                  <span className="font-medium">{t._id}</span>
-                  <p className="text-sm text-muted mt-1">{t.title}</p>
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // ** Quiz **  
-  const q = questions[step];
-  const progress = Math.round(((step + 1) / questions.length) * 100);
 
   return (
-    <div className="pt-24 max-w-3xl mx-auto bg-white bg-opacity-80 backdrop-blur-lg p-6 rounded-2xl shadow-xl">
-      <div className="h-2 w-full bg-muted/30 rounded-full mb-6 overflow-hidden">
-        <div className="h-2 bg-secondary" style={{ width: `${progress}%` }} />
-      </div>
+    <div className="relative flex flex-col items-center min-h-screen bg-gradient-to-br from-purple-800 to-blue-600 overflow-hidden pt-24 pb-12 px-4">
+      <div className="absolute top-8 left-8 w-40 h-40 bg-white opacity-10 rounded-full animate-float" />
+      <div className="absolute bottom-12 right-16 w-72 h-72 bg-white opacity-5 rounded-full" />
 
-      <h3 className="text-xl font-semibold text-gray-800 mb-4">
-        {step + 1}. {q.text}
-      </h3>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-        {q.options.map((opt, i) => (
-          <label
-            key={i}
-            className={`p-4 border rounded-lg cursor-pointer transition 
-              ${answers[q._id] == i 
-                ? 'border-secondary bg-secondary/10' 
-                : 'border-gray-300 hover:border-secondary/50'}`}
-          >
+      <div className="relative z-10 w-full max-w-3xl space-y-8">
+        <h1 className="text-4xl font-extrabold text-white text-center">Configura tu Simulacro</h1>
+        
+        <div className="bg-white bg-opacity-20 backdrop-blur-lg p-6 rounded-2xl shadow-xl space-y-6">
+          <h2 className="text-xl font-semibold text-white text-center">Simulacro General</h2>
+          
+          <div>
+            <label htmlFor="num-questions" className="flex items-center space-x-2 text-white font-medium mb-2">
+              <Hash size={20} />
+              <span>Número de Preguntas</span>
+            </label>
             <input
-              type="radio"
-              name={q._id}
-              value={i}
-              className="hidden"
-              checked={answers[q._id] == i}
-              onChange={() =>
-                setAnswers(a => ({ ...a, [q._id]: i }))
-              }
+              id="num-questions"
+              type="number"
+              value={numQuestions}
+              onChange={(e) => setNumQuestions(Number(e.target.value))}
+              min="1"
+              className="w-full bg-white/30 text-white placeholder-gray-300 p-3 rounded-lg border-2 border-transparent focus:border-white focus:outline-none transition"
+              placeholder="Ej: 25"
             />
-            {opt.text}
-          </label>
-        ))}
-      </div>
+          </div>
 
-      <div className="flex justify-between items-center">
-        <button
-          onClick={prev}
-          disabled={step === 0}
-          className="px-4 py-2 bg-muted/20 rounded-md hover:bg-muted/40 transition disabled:opacity-50"
-        >
-          <ChevronLeft size={20} /> Anterior
-        </button>
-        {step < questions.length - 1 ? (
+          <div>
+            <label className="flex items-center space-x-2 text-white font-medium mb-2">
+              <Clock size={20} />
+              <span>Tiempo Límite</span>
+            </label>
+            <div className="flex items-center space-x-4">
+              <div className="flex-1">
+                <input
+                  id="time-hours"
+                  type="number"
+                  value={timeHours}
+                  onChange={(e) => setTimeHours(Number(e.target.value))}
+                  min="0"
+                  className="w-full bg-white/30 text-white placeholder-gray-300 p-3 rounded-lg border-2 border-transparent focus:border-white focus:outline-none transition"
+                  placeholder="Horas"
+                />
+                <label htmlFor="time-hours" className="text-xs text-gray-200 pl-1">Horas</label>
+              </div>
+              <div className="flex-1">
+                <input
+                  id="time-minutes"
+                  type="number"
+                  value={timeMinutes}
+                  onChange={(e) => setTimeMinutes(Number(e.target.value))}
+                  min="0"
+                  className="w-full bg-white/30 text-white placeholder-gray-300 p-3 rounded-lg border-2 border-transparent focus:border-white focus:outline-none transition"
+                  placeholder="Minutos"
+                />
+                 <label htmlFor="time-minutes" className="text-xs text-gray-200 pl-1">Minutos</label>
+              </div>
+            </div>
+          </div>
+
           <button
-            onClick={next}
-            className="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary/90 transition"
+            onClick={startRandomTest}
+            className="w-full bg-secondary text-white py-3 rounded-lg shadow-lg hover:bg-secondary/90 transition flex items-center justify-center space-x-2 font-bold"
           >
-            Siguiente <ChevronRight size={20} />
+            <BookOpen size={20} />
+            <span>Empezar Test Aleatorio</span>
           </button>
-        ) : (
-          <button
-            onClick={onSubmit}
-            className="px-4 py-2 bg-secondary text-white rounded-md hover:bg-secondary/90 transition"
-          >
-            Enviar Test
-          </button>
-        )}
+        </div>
       </div>
     </div>
   );

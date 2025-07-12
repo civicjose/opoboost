@@ -3,18 +3,22 @@ const router = require('express').Router();
 const auth = require('../middleware/authMiddleware');
 const role = require('../middleware/roleMiddleware');
 const {
-  listUsers,
+  listActiveUsers,
+  listPendingUsers,
   updateUserRole,
   deleteUser
 } = require('../controllers/userController');
 
-// GET    /api/users        → listar todos (solo ADMIN)
-router.get('/', auth, role(['administrador']), listUsers);
+// GET /api/users/active -> Listar todos los usuarios validados (solo ADMIN)
+router.get('/active', auth, role(['administrador']), listActiveUsers);
 
-// PUT    /api/users/:id    → cambiar rol (solo ADMIN)
+// GET /api/users/pending -> Listar todos los usuarios pendientes (solo ADMIN)
+router.get('/pending', auth, role(['administrador']), listPendingUsers);
+
+// PUT /api/users/:id -> Cambiar rol (solo ADMIN)
 router.put('/:id', auth, role(['administrador']), updateUserRole);
 
-// DELETE /api/users/:id    → eliminar usuario (solo ADMIN)
+// DELETE /api/users/:id -> Eliminar usuario (solo ADMIN)
 router.delete('/:id', auth, role(['administrador']), deleteUser);
 
 module.exports = router;

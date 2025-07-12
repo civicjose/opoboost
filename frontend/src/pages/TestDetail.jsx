@@ -1,108 +1,131 @@
 // frontend/src/pages/TestDetail.jsx
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useContext } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { getTestDefinitionById, submitTest } from '../api/tests';
-import { ArrowLeft, ArrowRight, CheckCircle, XCircle, Clock } from 'lucide-react';
+import { getTestDefinitionById, submitTest, getAttemptById } from '../api/tests';
+import { useTestExit, TestExitContext } from '../contexts/TestExitContext';
+import { ArrowLeft, ArrowRight, CheckCircle, XCircle, Clock, BookCheck } from 'lucide-react';
+
+// --- Componente Modal (ahora lo obtenemos del contexto) ---
+const ExitModal = () => {
+    const { isExitModalOpen, confirmAndNavigate, cancelExit } = useTestExit();
+    if (!isExitModalOpen) return null;
+
+    return (
+        <div className="fixed inset-0 flex items-center justify-center z-50 bg-black/70">
+            <div className="relative bg-gray-800 text-white rounded-2xl p-6 w-full max-w-sm shadow-xl border border-white/20 text-center">
+                <XCircle size={32} className="text-red-500 mx-auto mb-2"/>
+                <h3 className="text-xl font-semibold mb-2">¿Seguro que quieres salir?</h3>
+                <p className="mb-4 text-gray-300">Perderás todo tu progreso en este test.</p>
+                <div className="flex justify-end space-x-4">
+                    <button onClick={cancelExit} className="px-4 py-2 bg-gray-600 rounded-lg hover:bg-gray-500">Cancelar</button>
+                    <button onClick={confirmAndNavigate} className="px-4 py-2 bg-red-600 rounded-lg hover:bg-red-500 font-bold">Sí, Salir</button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 
 export default function TestDetail() {
-  const { cat, testId } = useParams();
-  const nav = useNavigate();
+  const { cat, testId, attemptId } = useParams();
+  const navigate = useNavigate();
   const location = useLocation();
+  const { attemptToNavigate } = useTestExit();
+  const { setIsTestInProgress } = useContext(TestExitContext); // Obtenemos la función para cambiar el estado
 
-  // Determinamos si es un simulacro basándonos en la ruta
+  const isReview = location.pathname.startsWith('/history/review');
   const isSimulacro = location.pathname.startsWith('/simulacro');
 
   const [td, setTd] = useState(null);
   const [idx, setIdx] = useState(0);
   const [answers, setAnswers] = useState({});
-  const [stage, setStage] = useState('taking'); // 'taking' | 'finished' | 'review'
+  const [stage, setStage] = useState(isReview ? 'review' : 'taking');
   const [result, setResult] = useState(null);
-  const [showExitModal, setShowExitModal] = useState(false);
-
-  // --- Lógica del Temporizador ---
-  const duration = location.state?.duration; // en minutos
+  
+  const duration = location.state?.duration;
   const [timeLeft, setTimeLeft] = useState(duration ? duration * 60 : null);
   const timerRef = useRef(null);
 
-  // --- Función para finalizar el test ---
+  // --- Lógica de Control de Estado ---
+  useEffect(() => {
+    // Si estamos en la etapa de "realizando test", activamos la alerta global
+    if (stage === 'taking') {
+      setIsTestInProgress(true);
+    } else {
+      // En cualquier otro caso (revisión, finalizado), la desactivamos
+      setIsTestInProgress(false);
+    }
+
+    // Función de limpieza: se asegura de desactivar la alerta si el componente se desmonta
+    return () => {
+      setIsTestInProgress(false);
+    };
+  }, [stage, setIsTestInProgress]);
+
   const finish = async () => {
-    // Evita que se llame múltiples veces si el estado ya no es 'taking'
-    if (stage !== 'taking' || !td) return; 
-    
-    // Detiene el temporizador para que no siga corriendo
+    if (stage !== 'taking' || !td) return;
     if (timerRef.current) clearInterval(timerRef.current);
     
     let ac = 0, fa = 0, va = 0;
     td.questions.forEach(x => {
-      if (!(x._id in answers)) {
-        va++;
-      } else {
-        answers[x._id] === x.correct ? ac++ : fa++;
-      }
+      if (!(x._id in answers)) va++;
+      else answers[x._id] === x.correct ? ac++ : fa++;
     });
 
-    const raw = td.questions.length > 0 ? Math.max(0, ac - Math.floor(fa / 2)) / td.questions.length * 10 : 0;
-    const score = Number(raw.toFixed(2));
+    const rawScore = td.questions.length > 0 ? Math.max(0, ac - Math.floor(fa / 4)) / td.questions.length * 10 : 0;
+    const finalScore = Number(rawScore.toFixed(2));
 
     await submitTest({
-      testDef: td._id, // Siempre usamos el ID real del TestDefinition
+      testDef: td._id,
       answers: Object.entries(answers).map(([qid, a]) => ({ question: qid, answer: a })),
-      aciertos: ac,
-      fallos: fa,
-      vacias: va,
-      score,
-      duration: duration || 0
+      aciertos: ac, fallos: fa, vacias: va, score: finalScore, duration: duration || 0
     });
 
-    setResult({ ac, fa, va, score });
-    setStage('finished'); // Cambia el estado para mostrar la pantalla de resultados
+    setResult({ ac, fa, va, score: finalScore });
+    setStage('finished');
   };
 
-  // --- Efecto para cargar datos del test ---
   useEffect(() => {
-    const currentTestId = isSimulacro ? testId : (location.state?.testData?._id || testId);
-    
-    if (location.state?.testData && location.state.testData._id === currentTestId) {
-      setTd(location.state.testData);
-    } else if (currentTestId) {
-      getTestDefinitionById(currentTestId)
-        .then(r => setTd(r.data))
-        .catch(err => console.error("Error cargando el test:", err));
+    if (isReview) {
+      getAttemptById(attemptId).then(res => {
+        const attempt = res.data;
+        setTd(attempt.testDef);
+        const userAnswers = attempt.answers.reduce((acc, ans) => {
+          acc[ans.question] = ans.answer;
+          return acc;
+        }, {});
+        setAnswers(userAnswers);
+      });
+    } else {
+      const currentTestId = isSimulacro ? testId : testId;
+      if (currentTestId) {
+        getTestDefinitionById(currentTestId).then(r => setTd(r.data));
+      }
     }
-  }, [testId, isSimulacro, location.state]);
+  }, [attemptId, testId, isReview]);
 
-  // --- Efecto para el ciclo de vida del temporizador ---
   useEffect(() => {
     if (stage === 'taking' && duration && td) {
       timerRef.current = setInterval(() => {
         setTimeLeft(t => {
           if (t <= 1) {
             clearInterval(timerRef.current);
-            finish(); // Finaliza el test automáticamente
+            finish();
             return 0;
           }
           return t - 1;
         });
       }, 1000);
     }
-    // Limpieza al desmontar o cambiar de estado
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
+    return () => clearInterval(timerRef.current);
   }, [stage, duration, td]);
 
-  // --- Funciones de navegación y modales ---
   const handleGoBack = () => {
-    const backPath = isSimulacro ? '/test' : `/categories/${cat}`;
-    nav(backPath);
+    const backPath = isReview ? '/history' : (isSimulacro ? '/test' : `/categories/${cat}`);
+    navigate(backPath);
   };
 
   const review = () => setStage('review');
-  const confirmExit = () => {
-    setShowExitModal(false);
-    handleGoBack();
-  };
-  const cancelExit = () => setShowExitModal(false);
 
   const formatTime = (seconds) => {
     if (seconds === null) return '';
@@ -128,6 +151,8 @@ export default function TestDetail() {
     <div className="relative flex flex-col items-center min-h-screen bg-gradient-to-br from-purple-800 to-blue-600 overflow-hidden">
       <div className="absolute top-8 left-8 w-40 h-40 bg-white opacity-10 rounded-full animate-float" />
       <div className="absolute bottom-12 right-16 w-72 h-72 bg-white opacity-5 rounded-full" />
+      
+      <ExitModal />
 
       <div className="relative z-10 w-full max-w-6xl px-4 pt-24 pb-12 space-y-8">
         
@@ -142,7 +167,7 @@ export default function TestDetail() {
                 </div>
               )}
               <div className="flex space-x-4">
-                <button onClick={() => setShowExitModal(true)} className="underline text-sm">Salir</button>
+                <button onClick={() => attemptToNavigate(isSimulacro ? '/test' : `/categories/${cat}`)} className="bg-white/10 px-4 py-2 rounded-lg text-sm hover:bg-white/20 transition">Salir</button>
                 <button onClick={finish} className="bg-secondary text-white px-4 py-2 rounded-lg shadow hover:bg-secondary/90 transition">Terminar Test</button>
               </div>
             </div>
@@ -175,74 +200,31 @@ export default function TestDetail() {
 
         {stage === 'finished' && result && (
           <div className="bg-white bg-opacity-20 backdrop-blur-lg p-8 rounded-2xl shadow-xl text-white space-y-6 text-center">
-            <div className="flex items-center justify-center space-x-3">
-              <CheckCircle size={32} className="text-green-400" />
-              <h2 className="text-2xl font-bold">Test Finalizado</h2>
-            </div>
+            <div className="flex items-center justify-center space-x-3"><CheckCircle size={32} className="text-green-400" /><h2 className="text-2xl font-bold">Test Finalizado</h2></div>
             <p className="text-xl">Tu nota: <span className="font-bold text-3xl">{result.score}</span> / 10</p>
-            <div className="flex justify-center space-x-8">
-              <div><strong>{result.ac}</strong> aciertos</div>
-              <div><strong>{result.fa}</strong> fallos</div>
-              <div><strong>{result.va}</strong> en blanco</div>
-            </div>
-            <div className="flex justify-center space-x-4 pt-4">
-              <button onClick={review} className="bg-primary text-white px-6 py-2 rounded-full shadow hover:bg-primary/90 transition">Revisar Test</button>
-              <button onClick={handleGoBack} className="bg-secondary text-white px-6 py-2 rounded-full shadow hover:bg-secondary/90 transition">Volver</button>
-            </div>
+            <div className="flex justify-center space-x-8"><div><strong>{result.ac}</strong> aciertos</div><div><strong>{result.fa}</strong> fallos</div><div><strong>{result.va}</strong> en blanco</div></div>
+            <div className="flex justify-center space-x-4 pt-4"><button onClick={review} className="bg-primary text-white px-6 py-2 rounded-full shadow hover:bg-primary/90 transition">Revisar Test</button><button onClick={handleGoBack} className="bg-secondary text-white px-6 py-2 rounded-full shadow hover:bg-secondary/90 transition">Volver</button></div>
           </div>
         )}
 
         {stage === 'review' && (
           <div className="space-y-6">
-            <div className="flex justify-between items-center">
-              <h2 className="text-3xl font-bold text-white">Revisión del Test</h2>
-              <button onClick={handleGoBack} className="bg-secondary text-white px-6 py-2 rounded-full shadow hover:bg-secondary/90 transition">Volver</button>
-            </div>
+            <div className="flex justify-between items-center"><h2 className="text-3xl font-bold text-white flex items-center"><BookCheck className="mr-3"/>Revisión del Test</h2><button onClick={handleGoBack} className="bg-secondary text-white px-6 py-2 rounded-full shadow hover:bg-secondary/90 transition">Volver</button></div>
             {questions.map((quest, i) => {
               const userAnswer = answers[quest._id];
               const isCorrect = userAnswer === quest.correct;
               const status = userAnswer === undefined ? 'vacia' : isCorrect ? 'acierto' : 'fallo';
-              
-              const statusStyles = {
-                acierto: { border: 'border-green-500', bg: 'bg-green-900/30' },
-                fallo: { border: 'border-red-500', bg: 'bg-red-900/30' },
-                vacia: { border: 'border-yellow-500', bg: 'bg-yellow-900/30' }
-              };
-              
+              const statusStyles = {acierto: { border: 'border-green-500', bg: 'bg-green-900/30' },fallo: { border: 'border-red-500', bg: 'bg-red-900/30' },vacia: { border: 'border-yellow-500', bg: 'bg-yellow-900/30' }};
               return (
                 <div key={quest._id} className={`border-l-4 p-4 rounded-lg text-white ${statusStyles[status].border} ${statusStyles[status].bg}`}>
                   <p className="font-semibold mb-2">{i + 1}. {quest.text}</p>
-                  <p className="text-sm">
-                    <strong className="text-gray-300">Tu respuesta: </strong>
-                    {status === 'vacia' 
-                      ? <em className="text-yellow-400">Sin responder</em> 
-                      : <span className={isCorrect ? 'text-green-400' : 'text-red-400'}>{quest.options[userAnswer]?.text || 'Opción no válida'}</span>
-                    }
-                  </p>
-                  {!isCorrect && status !== 'vacia' && (
-                     <p className="text-sm"><strong className="text-gray-300">Respuesta correcta: </strong><span className="text-green-400">{quest.options[quest.correct]?.text}</span></p>
-                  )}
-                </div>
-              );
+                  <p className="text-sm"><strong className="text-gray-300">Tu respuesta: </strong>{status === 'vacia' ? <em className="text-yellow-400">Sin responder</em> : <span className={isCorrect ? 'text-green-400' : 'text-red-400'}>{quest.options[userAnswer]?.text || 'Opción no válida'}</span>}</p>
+                  {status === 'fallo' && (<p className="text-sm"><strong className="text-gray-300">Respuesta correcta: </strong><span className="text-green-400">{quest.options[quest.correct]?.text}</span></p>)}
+                </div>);
             })}
           </div>
         )}
       </div>
-
-      {showExitModal && (
-        <div className="fixed inset-0 flex items-center justify-center z-50">
-          <div className="absolute inset-0 bg-black opacity-50" onClick={cancelExit} />
-          <div className="relative bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl text-center">
-            <XCircle size={32} className="text-red-500 mx-auto mb-2" />
-            <h3 className="text-xl font-semibold mb-2">¿Seguro que quieres salir?</h3>
-            <p className="mb-4 text-gray-600">Perderás todo tu progreso en este test.</p>
-            <div className="flex justify-end space-x-4">
-              <button onClick={cancelExit} className="px-4 py-2 bg-gray-200 rounded-lg">Cancelar</button>
-              <button onClick={confirmExit} className="px-4 py-2 bg-red-500 text-white rounded-lg">Salir</button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

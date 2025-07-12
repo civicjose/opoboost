@@ -1,44 +1,32 @@
-const router = require('express').Router()
-const auth   = require('../middleware/authMiddleware')
-const role   = require('../middleware/roleMiddleware')
+// backend/routes/tests.js
+const router = require('express').Router();
+const auth = require('../middleware/authMiddleware');
+const role = require('../middleware/roleMiddleware');
 const {
   listTestDefsByCat,
   getTestDefinitionById,
   createTestDefinition,
+  importQuestionsToTest,
   createTest,
-  importQuestionsToTest
-} = require('../controllers/testController')
+  createFailedQuestionsTest,
+  updateTestDefinition,
+  getTestsForCategoryWithUserStats,
+  deleteTestDefinition 
+} = require('../controllers/testController');
 
-router.get(
-  '/definitions/list/:catId',
-  auth,
-  listTestDefsByCat
-)
+// --- NUEVA RUTA PARA LA VISTA DE TABLA ---
+// GET /api/tests/category-stats/:catId -> Obtiene tests con estadísticas del usuario
+router.get('/category-stats/:catId', auth, getTestsForCategoryWithUserStats);
 
-router.get(
-  '/definitions/:defId',
-  auth,
-  getTestDefinitionById
-)
+// --- RUTAS EXISTENTES ---
+router.get('/definitions/list/:catId', auth, listTestDefsByCat);
+router.get('/definitions/:defId', auth, getTestDefinitionById);
+router.post('/definitions/:catId', auth, role(['profesor', 'administrador']), createTestDefinition);
+router.post('/definitions/:defId/import-questions', auth, role(['profesor', 'administrador']), importQuestionsToTest);
+router.post('/random', auth, createTest);
+router.post('/failed', auth, createFailedQuestionsTest);
+router.put('/definitions/:defId', auth, role(['profesor', 'administrador']), updateTestDefinition);
+router.delete('/definitions/:defId', auth, role(['administrador']), deleteTestDefinition);
 
-router.post(
-  '/definitions/:catId',
-  auth,
-  role(['profesor','administrador']),
-  createTestDefinition
-)
 
-router.post(
-  '/definitions/:defId/import-questions',
-  auth,
-  role(['profesor','administrador']),
-  importQuestionsToTest
-)
-
-router.post(
-  '/random',
-  auth,
-  createTest
-)
-
-module.exports = router
+module.exports = router;

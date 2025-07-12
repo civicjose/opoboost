@@ -1,4 +1,6 @@
 const Category = require('../models/Category');
+const TestDefinition = require('../models/TestDefinition');
+
 
 // Listar todas
 exports.listCategories = async (req, res) => {
@@ -24,8 +26,20 @@ exports.createCategory = async (req, res) => {
 // Borrar categoría
 exports.deleteCategory = async (req, res) => {
   const { id } = req.params;
-  await Category.findByIdAndDelete(id);
-  res.json({ message: 'Categoría eliminada' });
+
+  try {
+    // 1. Borrar todos los TestDefinition que pertenecen a esta categoría
+    await TestDefinition.deleteMany({ category: id });
+
+    // 2. Borrar la categoría en sí
+    await Category.findByIdAndDelete(id);
+
+    res.json({ message: 'Categoría y todos sus tests asociados han sido eliminados.' });
+
+  } catch (err) {
+    console.error('Error en el borrado en cascada:', err.message);
+    res.status(500).json({ message: 'Error al eliminar la categoría.' });
+  }
 };
 
 // Editar categoría

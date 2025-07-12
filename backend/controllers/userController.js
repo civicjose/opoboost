@@ -1,15 +1,29 @@
 // backend/controllers/userController.js
 const User = require('../models/User');
 
-// Listar todos los usuarios (solo ADMIN)
-exports.listUsers = async (req, res) => {
+// --- NUEVAS FUNCIONES ---
+
+// Listar usuarios ya validados (activos)
+exports.listActiveUsers = async (req, res) => {
   try {
-    const users = await User.find().select('-password');
+    const users = await User.find({ validated: true }).select('-password').sort({ createdAt: -1 });
     res.json(users);
   } catch (err) {
-    res.status(500).json({ message: 'Error al obtener usuarios' });
+    res.status(500).json({ message: 'Error al obtener usuarios activos' });
   }
 };
+
+// Listar usuarios pendientes de validación
+exports.listPendingUsers = async (req, res) => {
+  try {
+    const users = await User.find({ validated: false }).select('-password').sort({ createdAt: -1 });
+    res.json(users);
+  } catch (err) {
+    res.status(500).json({ message: 'Error al obtener usuarios pendientes' });
+  }
+};
+
+// --- FUNCIONES EXISTENTES (SIN CAMBIOS) ---
 
 // Cambiar rol de un usuario (solo ADMIN)
 exports.updateUserRole = async (req, res) => {

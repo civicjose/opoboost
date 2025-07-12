@@ -12,6 +12,11 @@ export const getTestDefinitionById = defId =>
 export const createTestDefinition = (catId, title) =>
   api.post(`/tests/definitions/${encodeURIComponent(catId)}`, { title });
 
+// --- FUNCIÓN QUE FALTABA ---
+// Actualizar una definición de test (ej. cambiar el título)
+export const updateTestDefinition = (defId, data) =>
+  api.put(`/tests/definitions/${encodeURIComponent(defId)}`, data);
+
 // Importar preguntas JSON a un test
 export const importQuestionsToTest = (defId, questionsArray) =>
   api.post(
@@ -23,5 +28,17 @@ export const importQuestionsToTest = (defId, questionsArray) =>
 export const submitTest = payload =>
   api.post('/attempts', payload);
 
+// Crear un test aleatorio (simulacro)
 export const createTest = (limit = 10) =>
   api.post('/tests/random', { limit });
+
+// Crear un test de repaso con preguntas falladas
+export const createFailedQuestionsTest = (limit) =>
+  api.post('/tests/failed', { limit });
+  
+// Obtener un intento de test por su ID para revisión
+export const getAttemptById = attemptId => 
+  api.get(`/attempts/${encodeURIComponent(attemptId)}`);
+
+export const deleteTest = (defId) =>
+  api.delete(`/tests/definitions/${encodeURIComponent(defId)}`);

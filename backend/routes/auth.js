@@ -3,6 +3,7 @@ const { register, login, validateUser } = require('../controllers/authController
 const auth   = require('../middleware/authMiddleware');
 const role   = require('../middleware/roleMiddleware');
 
+
 // POST /api/auth/register
 router.post('/register', register);
 

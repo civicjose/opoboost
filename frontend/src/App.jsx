@@ -3,6 +3,7 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { AuthProvider } from './contexts/AuthContext'
 import PrivateRoute from './components/PrivateRoute'
+import { TestExitProvider } from './contexts/TestExitContext';
 import Sidebar from './components/Sidebar'
 
 // Pages
@@ -13,13 +14,16 @@ import Categories from './pages/Categories'
 import TestList from './pages/TestList'
 import TestDetail from './pages/TestDetail'
 import AdminUsers from './pages/AdminUsers'
+import AdminQuestions from './pages/AdminQuestions'
 import AttemptsHistory from './pages/AttemptsHistory'
-import Test from './pages/Test' // Importamos la página de Simulacros/Test
+import Test from './pages/Test'
 
 export default function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
+      <TestExitProvider>
+
         <Sidebar />
 
         <Routes>
@@ -36,15 +40,17 @@ export default function App() {
           
           {/* RUTA AÑADIDA PARA LA PÁGINA DE SELECCIÓN DE SIMULACRO */}
           <Route path="/test" element={<PrivateRoute><Test /></PrivateRoute>} />
-
+          <Route path="/history/review/:attemptId" element={<PrivateRoute><TestDetail /></PrivateRoute>} />
           {/* RUTA AÑADIDA PARA MOSTRAR EL TEST DEL SIMULACRO */}
           <Route path="/simulacro/:testId" element={<PrivateRoute><TestDetail /></PrivateRoute>} />
 
           {/* Rutas de Admin/Profesor */}
           <Route path="/admin/users" element={<PrivateRoute roles={['administrador']}><AdminUsers /></PrivateRoute>} />
+          <Route path="/admin/questions" element={<PrivateRoute roles={['profesor', 'administrador']}><AdminQuestions /></PrivateRoute>} />
           {/* Ruta Comodín */}
           <Route path="*" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
         </Routes>
+        </TestExitProvider>
       </BrowserRouter>
     </AuthProvider>
   )

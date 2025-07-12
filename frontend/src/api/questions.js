@@ -5,6 +5,9 @@ import api from './auth';
 // así que las eliminamos, dejando solo las de preguntas individuales.
 
 // Preguntas
+
+export const getAllQuestions = () =>
+  api.get('/questions');
 export const createQuestion = question =>
   api.post('/questions', question);
 

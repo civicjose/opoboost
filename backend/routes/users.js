@@ -6,7 +6,10 @@ const {
   listActiveUsers,
   listPendingUsers,
   updateUserRole,
-  deleteUser
+  deleteUser,
+  getUserPermissions,
+  updateUserPermissions,
+  getMyPermissions
 } = require('../controllers/userController');
 
 // GET /api/users/active -> Listar todos los usuarios validados (solo ADMIN)
@@ -20,5 +23,13 @@ router.put('/:id', auth, role(['administrador']), updateUserRole);
 
 // DELETE /api/users/:id -> Eliminar usuario (solo ADMIN)
 router.delete('/:id', auth, role(['administrador']), deleteUser);
+
+// Obtener los permisos de un usuario
+router.get('/:id/permissions', auth, role(['administrador']), getUserPermissions);
+
+// Actualizar los permisos de un usuario
+router.put('/:id/permissions', auth, role(['administrador']), updateUserPermissions);
+
+router.get('/my-permissions', auth, getMyPermissions);
 
 module.exports = router;

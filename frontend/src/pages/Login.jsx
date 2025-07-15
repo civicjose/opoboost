@@ -2,6 +2,7 @@ import React, { useState, useContext } from 'react';
 import { Lock, BookOpen } from 'lucide-react';
 import { AuthContext } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import LogoWhite from '../components/LogoWhite';
 
 export default function Login() {
   const [email, setEmail]       = useState('');
@@ -29,8 +30,9 @@ export default function Login() {
       <div className="relative z-10 w-full max-w-md p-4">
         {/* Logo / Nombre de la app */}
         <div className="flex items-center justify-center mb-6 space-x-2">
-          <BookOpen size={32} className="text-white" />
-          <h1 className="text-3xl font-extrabold text-white">OpoBoost</h1>
+          <div className="flex justify-center mb-6">
+          <LogoWhite height="150" />
+        </div>
         </div>
 
         <div className="bg-white bg-opacity-80 backdrop-blur-lg p-8 rounded-2xl shadow-xl">

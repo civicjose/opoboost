@@ -76,6 +76,9 @@ export default function AttemptsHistory() {
 
   return (
     <div className="relative flex flex-col items-center min-h-screen bg-gradient-to-br from-purple-800 to-blue-600 overflow-hidden pt-24 pb-12 px-4">
+      <div className="absolute top-8 left-8 w-40 h-40 bg-white opacity-10 rounded-full animate-float" />
+      <div className="absolute bottom-12 right-16 w-72 h-72 bg-white opacity-5 rounded-full" />
+
       <div className="relative z-10 w-full max-w-6xl space-y-8">
         <h1 className="text-4xl font-extrabold text-white text-center">Historial de Intentos</h1>
 

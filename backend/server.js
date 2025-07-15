@@ -9,6 +9,7 @@ const testRoutes  = require('./routes/tests');
 const quesRoutes  = require('./routes/questions');
 const userRoutes  = require('./routes/users');
 const attemptsRoute = require('./routes/attempts');
+const feedbackRoutes = require('./routes/feedback');
 
 const app = express();
 app.use(cors());
@@ -21,6 +22,7 @@ app.use('/api/tests',      testRoutes);
 app.use('/api/questions',  quesRoutes);
 app.use('/api/users',      userRoutes);
 app.use('/api/attempts', attemptsRoute);
+app.use('/api/feedback', feedbackRoutes);
 
 
 mongoose

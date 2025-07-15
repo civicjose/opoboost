@@ -3,6 +3,7 @@ const TestDef = require('../models/TestDefinition');
 const Question = require('../models/Question');
 const Category = require('../models/Category');
 const Attempt = require('../models/Attempt');
+const TestDefinition = require('../models/TestDefinition');
 
 // --- HELPER ---
 // Función interna para obtener o crear la categoría para simulacros.
@@ -145,8 +146,17 @@ exports.listTestDefsByCat = async (req, res) => {
 exports.getTestDefinitionById = async (req, res) => {
   const { defId } = req.params;
   try {
-    const td = await TestDef.findById(defId).populate('questions');
-    if (!td) return res.status(404).json({ message: 'Test no encontrado' });
+    const td = await TestDefinition.findById(defId).populate('questions');
+    if (!td) {
+      return res.status(404).json({ message: 'Test no encontrado' });
+    }
+
+    // --- CORRECCIÓN CLAVE ---
+    // Filtramos cualquier posible pregunta 'null' que pueda quedar si
+    // una referencia no se ha borrado correctamente o por una condición de carrera.
+    // Esto hace que la función sea mucho más resiliente.
+    td.questions = td.questions.filter(q => q !== null);
+
     res.json(td);
   } catch (err) {
     console.error('Error obteniendo test:', err.message);
@@ -218,19 +228,72 @@ exports.deleteTestDefinition = async (req, res) => {
   const { defId } = req.params;
 
   try {
-    // 1. Borrar todos los intentos que pertenecen a esta definición de test
+    // 1. Primero, encontramos el test para saber qué preguntas contiene
+    const testToDelete = await TestDef.findById(defId);
+    if (!testToDelete) {
+      return res.status(404).json({ message: 'Test no encontrado.' });
+    }
+    const questionIdsToCheck = testToDelete.questions;
+
+    // 2. Borramos el TestDefinition y todos los intentos asociados
     await Attempt.deleteMany({ testDef: defId });
+    await TestDef.findByIdAndDelete(defId);
 
-    // 2. Borrar la definición del test en sí
-    const deletedTest = await TestDef.findByIdAndDelete(defId);
+    // 3. Ahora, revisamos cada pregunta que contenía el test borrado
+    for (const questionId of questionIdsToCheck) {
+      // Buscamos si algún OTRO test todavía contiene esta pregunta
+      const otherTestsUsingQuestion = await TestDef.findOne({ questions: questionId });
 
-    if (!deletedTest) {
-      return res.status(404).json({ message: 'No se encontró el test para eliminar.' });
+      // Si no se encuentra ningún otro test (es decir, la pregunta está huérfana)...
+      if (!otherTestsUsingQuestion) {
+        // ...la borramos de la colección de Preguntas.
+        await Question.findByIdAndDelete(questionId);
+      }
     }
 
-    res.json({ message: 'Test y todos sus intentos asociados han sido eliminados.' });
+    res.json({ message: 'Test, intentos y preguntas huérfanas eliminados correctamente.' });
+
   } catch (err) {
-    console.error("Error en el borrado del test:", err.message);
+    console.error("Error en el borrado del test y sus preguntas:", err.message);
     res.status(500).json({ message: "Error interno al eliminar el test." });
+  }
+};
+
+exports.addQuestionToTest = async (req, res) => {
+  const { defId } = req.params;
+  const { text, options, correct } = req.body;
+
+  if (!text || !options || correct === undefined) {
+    return res.status(400).json({ message: 'Datos de la pregunta incompletos.' });
+  }
+
+  try {
+    // 1. Buscamos el test al que vamos a añadir la pregunta
+    const testDef = await TestDefinition.findById(defId);
+    if (!testDef) {
+      return res.status(404).json({ message: 'Test no encontrado.' });
+    }
+
+    // 2. Creamos la nueva pregunta en la base de datos
+    const newQuestion = new Question({
+      text,
+      options: options.map(o => ({ text: o.text })), // Aseguramos el formato correcto
+      correct,
+      // Asignamos un topic genérico, ya que no se usa en la interfaz
+      topic: testDef.category.toString(),
+      topicTitle: 'Pregunta de Test',
+      validated: true
+    });
+    await newQuestion.save();
+
+    // 3. Añadimos el ID de la nueva pregunta al array de preguntas del test
+    testDef.questions.push(newQuestion._id);
+    await testDef.save();
+
+    res.status(201).json(newQuestion);
+
+  } catch (err) {
+    console.error("Error añadiendo pregunta al test:", err.message);
+    res.status(500).json({ message: "Error interno al añadir la pregunta." });
   }
 };

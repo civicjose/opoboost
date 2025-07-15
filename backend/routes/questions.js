@@ -1,7 +1,7 @@
 // backend/routes/questions.js
 const router = require('express').Router();
-const auth = require('../middleware/authMiddleware');
-const role = require('../middleware/roleMiddleware');
+const auth   = require('../middleware/authMiddleware');
+const role   = require('../middleware/roleMiddleware');
 const {
   listQuestions,
   getQuestionById,

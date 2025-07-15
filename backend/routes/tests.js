@@ -11,7 +11,8 @@ const {
   createFailedQuestionsTest,
   updateTestDefinition,
   getTestsForCategoryWithUserStats,
-  deleteTestDefinition 
+  deleteTestDefinition,
+  addQuestionToTest
 } = require('../controllers/testController');
 
 // --- NUEVA RUTA PARA LA VISTA DE TABLA ---
@@ -27,6 +28,7 @@ router.post('/random', auth, createTest);
 router.post('/failed', auth, createFailedQuestionsTest);
 router.put('/definitions/:defId', auth, role(['profesor', 'administrador']), updateTestDefinition);
 router.delete('/definitions/:defId', auth, role(['administrador']), deleteTestDefinition);
+router.post('/definitions/:defId/add-question', auth, role(['profesor', 'administrador']), addQuestionToTest);
 
 
 module.exports = router;

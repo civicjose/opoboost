@@ -3,7 +3,8 @@ import React, { useState, useContext } from 'react';
 import { useNavigate } from 'react-router-dom'; // 1. Importar useNavigate
 import { useTestExit } from '../contexts/TestExitContext';
 import { AuthContext } from '../contexts/AuthContext';
-import { Home, Grid, BookOpen, Users, Menu, LogOut, History as HistoryIcon, Edit } from 'lucide-react';
+import { Home, Grid, BookOpen, Users, Menu, LogOut, MessageSquare, History as HistoryIcon, Edit } from 'lucide-react';
+import Logo from './Logo';
 
 export default function Sidebar() {
   const [open, setOpen] = useState(false);
@@ -34,6 +35,9 @@ export default function Sidebar() {
       : []),
     ...(user && user.role === 'administrador'
       ? [{ to: '/admin/users', label: 'Usuarios', icon: <Users size={20}/> }]
+      : []),
+    ...(user && user.role === 'administrador'
+      ? [{ to: '/admin/feedback', label: 'Feedback', icon: <MessageSquare size={20}/> }]
       : [])
   ];
 
@@ -59,12 +63,9 @@ export default function Sidebar() {
         }`}
       >
         <div className="flex flex-col h-full p-6">
-          <h1
-            className="text-2xl font-bold text-primary mb-8 cursor-pointer select-none"
-            onClick={() => setOpen(false)}
-          >
-            OpoBoost
-          </h1>
+          <div className="mb-8 px-2" onClick={() => setOpen(false)}>
+            <Logo height="100" />
+          </div>
 
           <nav className="flex-1 space-y-2">
             {items.map(i => (

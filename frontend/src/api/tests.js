@@ -42,3 +42,6 @@ export const getAttemptById = attemptId =>
 
 export const deleteTest = (defId) =>
   api.delete(`/tests/definitions/${encodeURIComponent(defId)}`);
+
+export const addQuestionToTest = (defId, questionData) =>
+  api.post(`/tests/definitions/${encodeURIComponent(defId)}/add-question`, questionData);

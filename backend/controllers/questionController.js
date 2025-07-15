@@ -1,10 +1,9 @@
 // backend/controllers/questionController.js
 const Question = require('../models/Question');
+const TestDefinition = require('../models/TestDefinition');
 
-// Listar todas las preguntas (para el panel de administración)
 exports.listQuestions = async (req, res) => {
   try {
-    // Usamos .lean() para que la consulta sea más rápida, ya que solo necesitamos los datos.
     const questions = await Question.find({}).sort({ createdAt: -1 }).lean();
     res.json(questions);
   } catch (err) {
@@ -12,7 +11,6 @@ exports.listQuestions = async (req, res) => {
   }
 };
 
-// Obtener una pregunta específica por su ID
 exports.getQuestionById = async (req, res) => {
   try {
     const q = await Question.findById(req.params.id);
@@ -23,27 +21,21 @@ exports.getQuestionById = async (req, res) => {
   }
 };
 
-// Crear una pregunta
 exports.createQuestion = async (req, res) => {
-  try {
-    const { text, options, correct, topic, topicTitle, validated } = req.body;
-    const opts = options.map(o => ({ text: o.text ?? o }));
-    const q = new Question({ text, options: opts, correct, topic, topicTitle, validated });
-    await q.save();
-    res.status(201).json(q);
-  } catch (err) {
-    res.status(400).json({ message: 'Error creando pregunta', error: err.message });
-  }
+    try {
+        const { text, options, correct, topic, topicTitle, validated } = req.body;
+        const opts = options.map(o => ({ text: o.text ?? o }));
+        const q = new Question({ text, options: opts, correct, topic, topicTitle, validated });
+        await q.save();
+        res.status(201).json(q);
+    } catch (err) {
+        res.status(400).json({ message: 'Error creando pregunta', error: err.message });
+    }
 };
 
-// Actualizar una pregunta existente
 exports.updateQuestion = async (req, res) => {
   try {
-    const updatedQuestion = await Question.findByIdAndUpdate(
-      req.params.id, 
-      req.body, 
-      { new: true, runValidators: true } // Opciones para devolver el doc actualizado y correr validadores
-    );
+    const updatedQuestion = await Question.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
     if (!updatedQuestion) {
       return res.status(404).json({ message: 'Pregunta no encontrada para actualizar' });
     }
@@ -53,32 +45,32 @@ exports.updateQuestion = async (req, res) => {
   }
 };
 
-
-// Eliminar pregunta
 exports.deleteQuestion = async (req, res) => {
+  const { id } = req.params;
   try {
-    await Question.findByIdAndDelete(req.params.id);
-    res.json({ message: 'Pregunta eliminada' });
+    const deletedQuestion = await Question.findByIdAndDelete(id);
+    if (!deletedQuestion) {
+      return res.status(404).json({ message: "Pregunta no encontrada." });
+    }
+    await TestDefinition.updateMany(
+      { questions: id },
+      { $pull: { questions: id } }
+    );
+    res.json({ message: 'Pregunta eliminada permanentemente.' });
   } catch (err) {
-    res.status(500).json({ message: 'Error borrando pregunta', error: err.message });
+    console.error("Error borrando la pregunta:", err.message);
+    res.status(500).json({ message: 'Error borrando la pregunta.' });
   }
 };
 
-// Importar preguntas en bloque
+// --- FUNCIÓN CORREGIDA CON EL EXPORT ---
 exports.importQuestions = async (req, res) => {
   const arr = req.body;
   if (!Array.isArray(arr) || arr.length === 0) {
     return res.status(400).json({ message: 'Array de preguntas vacío o inválido' });
   }
   try {
-    const docs = arr.map(q => ({
-      text: q.text,
-      options: q.options.map(o => ({ text: o })),
-      correct: q.correct,
-      topic: q.topic,
-      topicTitle: q.topicTitle,
-      validated: q.validated ?? false
-    }));
+    const docs = arr.map(q => ({ text: q.text, options: q.options.map(o => ({ text: o })), correct: q.correct, topic: q.topic, topicTitle: q.topicTitle, validated: q.validated ?? false }));
     const inserted = await Question.insertMany(docs);
     res.json({ insertedCount: inserted.length, message: 'Preguntas importadas correctamente' });
   } catch (err) {

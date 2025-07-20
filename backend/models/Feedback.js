@@ -17,9 +17,17 @@ const FeedbackSchema = new mongoose.Schema({
     required: true,
     trim: true
   },
-  page: { // Para saber en qué URL estaba el usuario
+  page: {
     type: String, 
     required: true
+  },
+  replied: {
+    type: Boolean,
+    default: false
+  },
+  replyText: {
+    type: String,
+    trim: true
   },
   createdAt: {
     type: Date,

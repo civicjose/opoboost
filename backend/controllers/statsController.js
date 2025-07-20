@@ -1,13 +1,13 @@
 // backend/controllers/statsController.js
 const Attempt = require('../models/Attempt');
-const TestDef = require('../models/TestDefinition'); // Importamos TestDefinition
+const TestDef = require('../models/TestDefinition');
 const Category = require('../models/Category');
 
 exports.getStats = async (req, res) => {
   const userId = req.user.id;
 
   try {
-    // 1. Obtenemos todos los intentos del usuario
+    // 1. Obtenemos todos los intentos, populando la referencia al test
     const allAttempts = await Attempt.find({ user: userId })
       .populate({
         path: 'testDef',
@@ -19,19 +19,22 @@ exports.getStats = async (req, res) => {
       })
       .sort({ createdAt: -1 });
 
-    // 2. Filtramos para quedarnos solo con el último intento de cada test
+    // --- ¡AQUÍ ESTÁ LA SOLUCIÓN! ---
+    // 2. Filtramos los intentos para quedarnos solo con aquellos cuyo testDef todavía existe.
+    // Si un test fue eliminado, attempt.testDef será `null` después del populate.
+    const validAttempts = allAttempts.filter(attempt => attempt.testDef);
+
+    // 3. Ahora, trabajamos solo con los intentos válidos
     const latestAttempts = new Map();
-    allAttempts.forEach(attempt => {
-      if (attempt.testDef) { // Asegurarnos de que el testDef existe
-        const testId = attempt.testDef._id.toString();
-        if (!latestAttempts.has(testId)) {
-          latestAttempts.set(testId, attempt);
-        }
+    validAttempts.forEach(attempt => {
+      const testId = attempt.testDef._id.toString();
+      if (!latestAttempts.has(testId)) {
+        latestAttempts.set(testId, attempt);
       }
     });
     const uniqueLatestAttempts = Array.from(latestAttempts.values());
 
-    // 3. Calculamos las estadísticas básicas (aciertos, fallos, etc.)
+    // 4. Calculamos las estadísticas, que ahora serán correctas
     let correct = 0;
     let incorrect = 0;
     let simulacroCount = 0;
@@ -45,19 +48,13 @@ exports.getStats = async (req, res) => {
     });
     const totalTestsTaken = uniqueLatestAttempts.length;
 
-    // --- LÓGICA DE PROGRESO CORREGIDA ---
-    // 4. Calculamos el progreso basado en tests APROBADOS sobre el TOTAL de tests
-    
-    // Contamos cuántos de los tests únicos realizados están aprobados
+    // (El resto de la lógica para el progreso no necesita cambios)
     const approvedTestsCount = uniqueLatestAttempts.filter(attempt => attempt.score >= 5).length;
-    
-    // Contamos el total de tests que existen en la plataforma (excluyendo los simulacros)
     const generalCategory = await Category.findOne({ name: 'Simulacros Generales' });
     const totalAvailableTests = await TestDef.countDocuments({ 
-        category: { $ne: generalCategory ? generalCategory._id : null } 
+        category: { $ne: generalCategory ? generalCategory._id : null },
+        isTemporary: { $ne: true } // Excluimos también los simulacros temporales
     });
-
-    // Calculamos el porcentaje
     const progress = totalAvailableTests > 0 
       ? Math.round((approvedTestsCount / totalAvailableTests) * 100)
       : 0;
@@ -67,7 +64,7 @@ exports.getStats = async (req, res) => {
       correct: correct,
       incorrect: incorrect,
       simulacros: simulacroCount,
-      progress: Math.min(100, progress) // Aseguramos que no pase de 100
+      progress: Math.min(100, progress)
     });
 
   } catch (err) {

@@ -1,9 +1,8 @@
-// frontend/src/pages/TestDetail.jsx
 import React, { useState, useEffect, useRef, useContext } from 'react';
 import { useParams, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { getTestDefinitionById, submitTest, getAttemptById } from '../api/tests';
 import { useTestExit, TestExitContext } from '../contexts/TestExitContext';
-import { ArrowLeft, ArrowRight, CheckCircle, XCircle, Clock, BookCheck } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CheckCircle, XCircle, Clock, BookCheck, AlertTriangle } from 'lucide-react';
 
 // --- Sub-componente: Grid de Navegación de Preguntas ---
 const QuestionGrid = ({ count, currentIdx, answeredIds, onSelect }) => (
@@ -52,6 +51,24 @@ const ExitModal = () => {
     );
 };
 
+// --- NUEVO Componente Modal para Confirmar Finalización ---
+const FinishModal = ({ isOpen, onConfirm, onCancel }) => {
+    if (!isOpen) return null;
+    return (
+        <div className="fixed inset-0 flex items-center justify-center z-50 bg-black/70">
+            <div className="relative bg-gray-800 text-white rounded-2xl p-6 w-full max-w-sm shadow-xl border border-white/20 text-center">
+                <AlertTriangle size={32} className="text-yellow-400 mx-auto mb-2"/>
+                <h3 className="text-xl font-semibold mb-2">¿Terminar el test?</h3>
+                <p className="mb-4 text-gray-300">Una vez finalizado, se calculará tu nota y no podrás cambiar tus respuestas.</p>
+                <div className="flex justify-end space-x-4">
+                    <button onClick={onCancel} className="px-4 py-2 bg-gray-600 rounded-lg hover:bg-gray-500">Cancelar</button>
+                    <button onClick={onConfirm} className="px-4 py-2 bg-secondary rounded-lg hover:bg-secondary/90 font-bold">Sí, Terminar</button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 export default function TestDetail() {
     const { cat, testId, attemptId } = useParams();
     const navigate = useNavigate();
@@ -79,6 +96,7 @@ export default function TestDetail() {
     const duration = location.state?.duration;
     const [timeLeft, setTimeLeft] = useState(duration ? duration * 60 : null);
     const timerRef = useRef(null);
+    const [isFinishModalOpen, setIsFinishModalOpen] = useState(false);
 
     useEffect(() => {
         setIsTestInProgress(stage === 'taking');
@@ -154,7 +172,12 @@ export default function TestDetail() {
     
         await submitTest({
           testDef: td._id,
-          answers: Object.entries(answers).map(([qid, a]) => ({ question: qid, answer: a })),
+          answers: Object.entries(answers).map(([qid, answerIndex]) => {
+          const question = questions.find(q => q._id === qid);
+          const selectedOption = question.shuffledOptions[answerIndex];
+          const isCorrect = selectedOption && selectedOption.originalIndex === question.correct;
+          return { question: qid, answer: answerIndex, isCorrect: isCorrect };
+            }),
           aciertos: ac, fallos: fa, vacias: va, score: finalScore, duration: duration || 0
         });
     
@@ -162,6 +185,11 @@ export default function TestDetail() {
         setStage('finished');
     };
     
+    const handleConfirmFinish = () => {
+        setIsFinishModalOpen(false);
+        finish();
+    };
+
     useEffect(() => { if (stage === 'taking' && duration && td) { timerRef.current = setInterval(() => { setTimeLeft(t => { if (t <= 1) { clearInterval(timerRef.current); finish(); return 0; } return t - 1; }); }, 1000); } return () => clearInterval(timerRef.current); }, [stage, duration, td]);
     
     const handleGoBack = () => { const backPath = isReview ? '/history' : (isSimulacro ? '/test' : `/categories/${cat}`); navigate(backPath); };
@@ -177,15 +205,37 @@ export default function TestDetail() {
             <div className="absolute top-8 left-8 w-40 h-40 bg-white opacity-10 rounded-full animate-float" />
             <div className="absolute bottom-12 right-16 w-72 h-72 bg-white opacity-5 rounded-full" />
             <ExitModal />
+            <FinishModal 
+                isOpen={isFinishModalOpen}
+                onConfirm={handleConfirmFinish}
+                onCancel={() => setIsFinishModalOpen(false)}
+            />
             <div className="relative z-10 w-full max-w-4xl px-4 pt-24 pb-12 space-y-8">
-                {stage === 'taking' && currentQuestion && (<> <QuestionGrid count={questions.length} currentIdx={idx} answeredIds={answeredQuestionIndexes} onSelect={setIdx}/> <div className="flex justify-between items-center text-white"><span className="font-semibold">{idx + 1} / {questions.length}</span>{timeLeft !== null && (<div className="flex items-center space-x-2 bg-white/20 px-3 py-1 rounded-full"><Clock size={16} /><span className="font-mono">{formatTime(timeLeft)}</span></div>)}<div className="flex space-x-4"><button onClick={() => attemptToNavigate(isSimulacro ? '/test' : `/categories/${cat}`)} className="bg-white/10 px-4 py-2 rounded-lg text-sm hover:bg-white/20 transition">Salir</button><button onClick={finish} className="bg-secondary text-white px-4 py-2 rounded-lg shadow hover:bg-secondary/90 transition">Terminar Test</button></div></div><div className="bg-white/20 backdrop-blur-lg p-6 rounded-2xl shadow-xl text-white space-y-4"><p className="font-semibold text-lg">{currentQuestion.text}</p><ul className="space-y-3">{optionsToShow.map((opt, i) => (<li key={i}><button onClick={() => selectAnswer(currentQuestion._id, i)} className={`w-full text-left p-3 rounded-lg border transition ${answers[currentQuestion._id] === i ? 'bg-secondary text-white' : 'bg-white bg-opacity-50 text-gray-800 hover:bg-opacity-70'}`}>{opt.text}</button></li>))}</ul><div className="flex justify-between pt-4"><button onClick={() => setIdx(x => Math.max(0, x - 1))} disabled={idx === 0} className="disabled:opacity-50 flex items-center text-white"><ArrowLeft className="mr-2" />Anterior</button><button onClick={() => setIdx(x => Math.min(questions.length - 1, x + 1))} disabled={idx === questions.length - 1} className="disabled:opacity-50 flex items-center text-white">Siguiente<ArrowRight className="ml-2" /></button></div></div></>)}
+                {stage === 'taking' && currentQuestion && (<> 
+                    <QuestionGrid count={questions.length} currentIdx={idx} answeredIds={answeredQuestionIndexes} onSelect={setIdx}/> 
+                    <div className="flex justify-between items-center text-white">
+                        <span className="font-semibold">{idx + 1} / {questions.length}</span>
+                        {timeLeft !== null && (<div className="flex items-center space-x-2 bg-white/20 px-3 py-1 rounded-full"><Clock size={16} /><span className="font-mono">{formatTime(timeLeft)}</span></div>)}
+                        <div className="flex space-x-4">
+                            <button onClick={() => attemptToNavigate(isSimulacro ? '/test' : `/categories/${cat}`)} className="bg-white/10 px-4 py-2 rounded-lg text-sm hover:bg-white/20 transition">Salir</button>
+                            <button onClick={() => setIsFinishModalOpen(true)} className="bg-secondary text-white px-4 py-2 rounded-lg shadow hover:bg-secondary/90 transition">Terminar Test</button>
+                        </div>
+                    </div>
+                    <div className="bg-white/20 backdrop-blur-lg p-6 rounded-2xl shadow-xl text-white space-y-4">
+                        <p className="font-semibold text-lg">{currentQuestion.text}</p>
+                        <ul className="space-y-3">{optionsToShow.map((opt, i) => (<li key={i}><button onClick={() => selectAnswer(currentQuestion._id, i)} className={`w-full text-left p-3 rounded-lg border transition ${answers[currentQuestion._id] === i ? 'bg-secondary text-white' : 'bg-white bg-opacity-50 text-gray-800 hover:bg-opacity-70'}`}>{opt.text}</button></li>))}</ul>
+                        <div className="flex justify-between pt-4">
+                            <button onClick={() => setIdx(x => Math.max(0, x - 1))} disabled={idx === 0} className="disabled:opacity-50 flex items-center text-white"><ArrowLeft className="mr-2" />Anterior</button>
+                            <button onClick={() => setIdx(x => Math.min(questions.length - 1, x + 1))} disabled={idx === questions.length - 1} className="disabled:opacity-50 flex items-center text-white">Siguiente<ArrowRight className="ml-2" /></button>
+                        </div>
+                    </div>
+                </>)}
                 {stage === 'finished' && result && (<div className="bg-white bg-opacity-20 backdrop-blur-lg p-8 rounded-2xl shadow-xl text-white space-y-6 text-center"><div className="flex items-center justify-center space-x-3"><CheckCircle size={32} className="text-green-400" /><h2 className="text-2xl font-bold">Test Finalizado</h2></div><p className="text-xl">Tu nota: <span className="font-bold text-3xl">{result.score}</span> / 10</p><div className="flex justify-center space-x-8"><div><strong>{result.ac}</strong> aciertos</div><div><strong>{result.fa}</strong> fallos</div><div><strong>{result.va}</strong> en blanco</div></div><div className="flex justify-center space-x-4 pt-4"><button onClick={review} className="bg-primary text-white px-6 py-2 rounded-full shadow hover:bg-primary/90 transition">Revisar Test</button><button onClick={handleGoBack} className="bg-secondary text-white px-6 py-2 rounded-full shadow hover:bg-secondary/90 transition">Volver</button></div></div>)}
                 
                 {stage === 'study' && (
                     <div className="space-y-6">
                         <div className="flex justify-between items-center"><h2 className="text-3xl font-bold text-white flex items-center"><BookCheck className="mr-3"/>Modo Estudio: {td.title}</h2><button onClick={handleGoBack} className="bg-secondary text-white px-6 py-2 rounded-full shadow hover:bg-secondary/90 transition">Volver</button></div>
                         {questions.map((quest, i) => {
-                            // --- LÓGICA CORREGIDA PARA EL MODO ESTUDIO ---
                             const correctOptionText = quest.options[quest.correct]?.text || "Respuesta no disponible";
                             return (
                                 <div key={quest._id} className="bg-white/20 backdrop-blur-lg p-5 rounded-xl shadow-lg">

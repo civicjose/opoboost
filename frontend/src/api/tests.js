@@ -28,10 +28,6 @@ export const importQuestionsToTest = (defId, questionsArray) =>
 export const submitTest = payload =>
   api.post('/attempts', payload);
 
-// Crear un test aleatorio (simulacro)
-export const createTest = (limit = 10) =>
-  api.post('/tests/random', { limit });
-
 // Crear un test de repaso con preguntas falladas
 export const createFailedQuestionsTest = (limit) =>
   api.post('/tests/failed', { limit });
@@ -45,3 +41,9 @@ export const deleteTest = (defId) =>
 
 export const addQuestionToTest = (defId, questionData) =>
   api.post(`/tests/definitions/${encodeURIComponent(defId)}/add-question`, questionData);
+
+export const createCustomSimulacro = (simulacroData) =>
+  api.post('/tests/simulacro/custom', simulacroData);
+
+export const createFailedQuestionsSimulacro = () =>
+  api.post('/tests/simulacro/failed');

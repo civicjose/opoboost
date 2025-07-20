@@ -30,7 +30,7 @@ exports.getTestsForCategoryWithUserStats = async (req, res) => {
     const  userId  = req.user.id; // Obtenemos el ID del usuario del token
   
     try {
-      const tests = await TestDef.find({ category: catId }).lean();
+      const tests = await TestDef.find({ category: catId, isTemporary: { $ne: true } }).lean();
       const testIds = tests.map(t => t._id);
       const userAttempts = await Attempt.find({ user: userId, testDef: { $in: testIds } });
   
@@ -61,70 +61,54 @@ exports.getTestsForCategoryWithUserStats = async (req, res) => {
 };
 
 
-/**
- * Crea un TestDefinition con una selección aleatoria de preguntas.
- */
-exports.createTest = async (req, res) => {
-  const { limit = 10 } = req.body;
-  try {
-    const questions = await Question.aggregate([
-      { $match: { validated: true } },
-      { $sample: { size: Number(limit) } }
-    ]);
-    if (questions.length < limit) {
-      return res.status(400).json({ message: `No se encontraron suficientes preguntas. Solo se pudieron obtener ${questions.length}.` });
-    }
-    const questionIds = questions.map(q => q._id);
-    const simulacroCategory = await getSimulacroCategory();
-    const newTestDef = new TestDef({
-      title: `Simulacro Aleatorio (${limit} preguntas)`,
-      category: simulacroCategory._id,
-      questions: questionIds
-    });
-    await newTestDef.save();
-    const fullTestDef = await TestDef.findById(newTestDef._id).populate('questions');
-    res.status(201).json(fullTestDef);
-  } catch (err) {
-    console.error('Error al crear el simulacro:', err.message);
-    res.status(500).json({ message: 'Error generando simulacro', error: err.message });
-  }
-};
 
 /**
  * Crea un TestDefinition con preguntas que el usuario ha fallado previamente.
  */
 exports.createFailedQuestionsTest = async (req, res) => {
-    const { limit = 10 } = req.body;
+    const { limit = 1000 } = req.body;
     const userId = req.user.id;
     try {
-        const attempts = await Attempt.find({ user: userId }).populate({
-            path: 'testDef',
-            populate: { path: 'questions' }
-        });
+        // 1. Obtenemos TODOS los intentos del usuario, populando la referencia al test
+        const allAttempts = await Attempt.find({ user: userId }).populate('testDef');
+
+        // 2. Filtramos para descartar los intentos de tests que ya no existen (huérfanos)
+        const validAttempts = allAttempts.filter(attempt => attempt.testDef);
+
         const failedQuestionsIds = new Set();
-        attempts.forEach(attempt => {
-            if (!attempt.testDef || !attempt.testDef.questions) return;
+        
+        // 3. Recorremos SOLO los intentos válidos
+        validAttempts.forEach(attempt => {
             attempt.answers.forEach(answer => {
-                const question = attempt.testDef.questions.find(q => q && q._id.equals(answer.question));
-                if (question && answer.answer !== question.correct) {
-                    failedQuestionsIds.add(question._id.toString());
+                // 4. Hacemos una comprobación ESTRICTA.
+                // Solo se cuenta como fallo si el campo `isCorrect` existe y es explícitamente `false`.
+                // Esto ignora de forma segura los intentos antiguos que no tienen este campo.
+                if (answer.isCorrect === false) {
+                    failedQuestionsIds.add(answer.question.toString());
                 }
             });
         });
+
         const uniqueFailedIds = Array.from(failedQuestionsIds);
-        if (uniqueFailedIds.length < limit) {
-            return res.status(400).json({ message: `No tienes suficientes preguntas falladas. Solo tienes ${uniqueFailedIds.length} y has solicitado ${limit}.` });
+
+        if (uniqueFailedIds.length === 0) {
+            return res.status(400).json({ message: '¡Felicidades! No tienes preguntas falladas para repasar.' });
         }
+
+        // Barajamos y aplicamos el límite
         const randomFailedIds = uniqueFailedIds.sort(() => 0.5 - Math.random()).slice(0, limit);
+        
         const simulacroCategory = await getSimulacroCategory();
         const newTestDef = new TestDef({
-            title: `Repaso de Fallos (${limit} preguntas)`,
+            title: `Repaso de ${randomFailedIds.length} Preguntas Falladas`,
             category: simulacroCategory._id,
-            questions: randomFailedIds
+            questions: randomFailedIds,
+            isTemporary: true,
+            userOwner: userId
         });
         await newTestDef.save();
-        const fullTestDef = await TestDef.findById(newTestDef._id).populate('questions');
-        res.status(201).json(fullTestDef);
+        
+        res.status(201).json(newTestDef);
     } catch (err) {
         console.error('Error creando test de fallos:', err.message);
         res.status(500).json({ message: 'Error generando el test de repaso' });
@@ -150,11 +134,6 @@ exports.getTestDefinitionById = async (req, res) => {
     if (!td) {
       return res.status(404).json({ message: 'Test no encontrado' });
     }
-
-    // --- CORRECCIÓN CLAVE ---
-    // Filtramos cualquier posible pregunta 'null' que pueda quedar si
-    // una referencia no se ha borrado correctamente o por una condición de carrera.
-    // Esto hace que la función sea mucho más resiliente.
     td.questions = td.questions.filter(q => q !== null);
 
     res.json(td);
@@ -228,25 +207,19 @@ exports.deleteTestDefinition = async (req, res) => {
   const { defId } = req.params;
 
   try {
-    // 1. Primero, encontramos el test para saber qué preguntas contiene
     const testToDelete = await TestDef.findById(defId);
     if (!testToDelete) {
       return res.status(404).json({ message: 'Test no encontrado.' });
     }
     const questionIdsToCheck = testToDelete.questions;
 
-    // 2. Borramos el TestDefinition y todos los intentos asociados
     await Attempt.deleteMany({ testDef: defId });
+
     await TestDef.findByIdAndDelete(defId);
 
-    // 3. Ahora, revisamos cada pregunta que contenía el test borrado
     for (const questionId of questionIdsToCheck) {
-      // Buscamos si algún OTRO test todavía contiene esta pregunta
       const otherTestsUsingQuestion = await TestDef.findOne({ questions: questionId });
-
-      // Si no se encuentra ningún otro test (es decir, la pregunta está huérfana)...
       if (!otherTestsUsingQuestion) {
-        // ...la borramos de la colección de Preguntas.
         await Question.findByIdAndDelete(questionId);
       }
     }
@@ -254,7 +227,7 @@ exports.deleteTestDefinition = async (req, res) => {
     res.json({ message: 'Test, intentos y preguntas huérfanas eliminados correctamente.' });
 
   } catch (err) {
-    console.error("Error en el borrado del test y sus preguntas:", err.message);
+    console.error("Error en el borrado del test y sus dependencias:", err.message);
     res.status(500).json({ message: "Error interno al eliminar el test." });
   }
 };
@@ -296,4 +269,71 @@ exports.addQuestionToTest = async (req, res) => {
     console.error("Error añadiendo pregunta al test:", err.message);
     res.status(500).json({ message: "Error interno al añadir la pregunta." });
   }
+};
+
+exports.createCustomSimulacro = async (req, res) => {
+    const { testIds, limit, title, mode } = req.body;
+    const userId = req.user.id;
+    try {
+        let questionPoolIds = new Set();
+        let finalQuestionIds = [];
+
+        if (mode === 'study') {
+            if (!testIds || testIds.length === 0) return res.status(400).json({ message: 'Debes seleccionar al menos un test.' });
+            const tests = await TestDef.find({ '_id': { $in: testIds }, isTemporary: { $ne: true } }).select('questions');
+            tests.forEach(test => test.questions.forEach(qId => questionPoolIds.add(qId.toString())));
+            finalQuestionIds = Array.from(questionPoolIds);
+        } else if (mode === 'real') {
+            const user = await User.findById(userId).select('accessibleCategories');
+            const tests = await TestDef.find({ 'category': { $in: user.accessibleCategories }, isTemporary: { $ne: true } }).select('questions');
+            tests.forEach(test => test.questions.forEach(qId => questionPoolIds.add(qId.toString())));
+            const allAvailableIds = Array.from(questionPoolIds);
+            if (limit > allAvailableIds.length) return res.status(400).json({ message: `Solo hay ${allAvailableIds.length} preguntas disponibles.` });
+            finalQuestionIds = allAvailableIds.sort(() => 0.5 - Math.random()).slice(0, limit);
+        }
+
+        if (finalQuestionIds.length === 0) return res.status(400).json({ message: 'No se encontraron preguntas.' });
+        finalQuestionIds.sort(() => 0.5 - Math.random());
+        const simulacroCategory = await getSimulacroCategory();
+        const newTestDef = new TestDef({ title, category: simulacroCategory._id, questions: finalQuestionIds, isTemporary: true, userOwner: userId });
+        await newTestDef.save();
+        res.status(201).json(newTestDef);
+    } catch (err) {
+        res.status(500).json({ message: 'Error generando el simulacro' });
+    }
+};
+exports.createFailedQuestionsSimulacro = async (req, res) => {
+    const userId = req.user.id;
+    try {
+        const allAttempts = await Attempt.find({ user: userId }).populate('testDef', '_id'); // Populamos solo el ID para validar existencia
+        const validAttempts = allAttempts.filter(attempt => attempt.testDef);
+        const failedQuestionsIds = new Set();
+        
+        validAttempts.forEach(attempt => {
+            attempt.answers.forEach(answer => {
+                if (answer.isCorrect === false) {
+                    failedQuestionsIds.add(answer.question.toString());
+                }
+            });
+        });
+
+        const uniqueFailedIds = Array.from(failedQuestionsIds);
+        if (uniqueFailedIds.length === 0) {
+            return res.status(400).json({ message: '¡Felicidades! No tienes preguntas falladas para repasar.' });
+        }
+        uniqueFailedIds.sort(() => 0.5 - Math.random());
+
+        const simulacroCategory = await getSimulacroCategory();
+        const newTestDef = new TestDef({
+            title: `Repaso de ${uniqueFailedIds.length} Preguntas Falladas`,
+            category: simulacroCategory._id,
+            questions: uniqueFailedIds,
+            isTemporary: true,
+            userOwner: userId
+        });
+        await newTestDef.save();
+        res.status(201).json(newTestDef);
+    } catch (err) {
+        res.status(500).json({ message: 'Error generando el simulacro de repaso' });
+    }
 };

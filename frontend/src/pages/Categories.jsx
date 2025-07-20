@@ -1,11 +1,11 @@
-// frontend/src/pages/Categories.jsx
 import React, { useState, useEffect, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '../contexts/AuthContext';
 import { getCategories, createCategory, updateCategory, deleteCategory } from '../api/categories';
 import { Folder, PlusCircle, Trash2, Edit3, X } from 'lucide-react';
+import NotificationModal from '../components/NotificationModal'; // <-- 1. IMPORTAMOS EL MODAL
 
-// --- Componente Modal Genérico ---
+// --- Componente Modal Genérico (sin cambios) ---
 const Modal = ({ children, onClose }) => (
     <div className="fixed inset-0 flex items-center justify-center z-50 bg-black/70">
         <div className="relative bg-gray-800 text-white rounded-2xl p-6 w-full max-w-lg shadow-xl border border-white/20">
@@ -23,10 +23,10 @@ export default function Categories() {
   const { user } = useContext(AuthContext);
   const navigate = useNavigate();
   
-  // --- State para los Modales ---
-  const [modal, setModal] = useState(null); // 'create', 'edit', o 'delete'
+  const [modal, setModal] = useState(null);
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [form, setForm] = useState({ name: '', description: '' });
+  const [modalInfo, setModalInfo] = useState({ isOpen: false, title: '', message: '', type: 'alert' }); // <-- 2. AÑADIMOS ESTADO
 
   useEffect(() => {
     loadCategories();
@@ -51,6 +51,7 @@ export default function Categories() {
     setSelectedCategory(null);
   };
 
+  // --- FUNCIONES MODIFICADAS SIN ALERTS ---
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.name.trim()) return;
@@ -64,7 +65,10 @@ export default function Categories() {
       closeModal();
       await loadCategories();
     } catch (err) {
-      alert(err.response?.data?.message || 'Error guardando categoría');
+      // Cerramos el modal de edición/creación
+      closeModal();
+      // Mostramos el modal de notificación con el error
+      setModalInfo({ isOpen: true, title: 'Error', message: err.response?.data?.message || 'No se pudo guardar la categoría.' });
     } finally {
       setLoading(false);
     }
@@ -76,13 +80,18 @@ export default function Categories() {
       await deleteCategory(selectedCategory._id);
       closeModal();
       await loadCategories();
+      setModalInfo({ isOpen: true, title: 'Éxito', message: 'La categoría ha sido eliminada correctamente.', type: 'success'});
     } catch (err) {
-        alert('Error al eliminar la categoría.');
+        closeModal();
+        setModalInfo({ isOpen: true, title: 'Error', message: 'No se pudo eliminar la categoría.' });
     }
   };
 
   return (
     <div className="relative flex flex-col items-center min-h-screen bg-gradient-to-br from-purple-800 to-blue-600 overflow-hidden pt-24 pb-12 px-4">
+      {/* --- 3. RENDERIZAMOS EL MODAL --- */}
+      <NotificationModal {...modalInfo} onClose={() => setModalInfo({ isOpen: false, title: '', message: '' })} />
+
       <div className="absolute top-8 left-8 w-40 h-40 bg-white opacity-10 rounded-full animate-float" />
       <div className="absolute bottom-12 right-16 w-72 h-72 bg-white opacity-5 rounded-full" />
 
@@ -123,7 +132,7 @@ export default function Categories() {
         </div>
       </div>
 
-      {/* --- MODALES --- */}
+      {/* --- Modales de Acción (sin cambios) --- */}
       {modal === 'create' || modal === 'edit' ? (
         <Modal onClose={closeModal}>
           <h2 className="text-2xl font-bold mb-4">{modal === 'edit' ? 'Editar Categoría' : 'Nueva Categoría'}</h2>

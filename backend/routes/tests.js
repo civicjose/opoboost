@@ -7,12 +7,13 @@ const {
   getTestDefinitionById,
   createTestDefinition,
   importQuestionsToTest,
-  createTest,
   createFailedQuestionsTest,
   updateTestDefinition,
   getTestsForCategoryWithUserStats,
   deleteTestDefinition,
-  addQuestionToTest
+  addQuestionToTest,
+  createCustomSimulacro,
+  createFailedQuestionsSimulacro
 } = require('../controllers/testController');
 
 // --- NUEVA RUTA PARA LA VISTA DE TABLA ---
@@ -24,11 +25,12 @@ router.get('/definitions/list/:catId', auth, listTestDefsByCat);
 router.get('/definitions/:defId', auth, getTestDefinitionById);
 router.post('/definitions/:catId', auth, role(['profesor', 'administrador']), createTestDefinition);
 router.post('/definitions/:defId/import-questions', auth, role(['profesor', 'administrador']), importQuestionsToTest);
-router.post('/random', auth, createTest);
 router.post('/failed', auth, createFailedQuestionsTest);
 router.put('/definitions/:defId', auth, role(['profesor', 'administrador']), updateTestDefinition);
 router.delete('/definitions/:defId', auth, role(['administrador']), deleteTestDefinition);
 router.post('/definitions/:defId/add-question', auth, role(['profesor', 'administrador']), addQuestionToTest);
+router.post('/simulacro/custom', auth, createCustomSimulacro);
+router.post('/simulacro/failed', auth, createFailedQuestionsSimulacro);
 
 
 module.exports = router;

@@ -3,7 +3,8 @@ const mongoose = require('mongoose');
 
 const AnswerSchema = new mongoose.Schema({
   question: { type: mongoose.Schema.Types.ObjectId, ref: 'Question', required: true },
-  answer:   { type: Number, required: true }
+  answer:   { type: Number, required: true },
+  isCorrect: { type: Boolean, required: true }
 });
 
 const AttemptSchema = new mongoose.Schema({

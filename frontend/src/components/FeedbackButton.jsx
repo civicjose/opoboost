@@ -1,20 +1,22 @@
-// frontend/src/components/FeedbackButton.jsx
 import React, { useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { MessageSquare, X } from 'lucide-react';
 import { submitFeedback } from '../api/feedback';
+import NotificationModal from './NotificationModal'; // <-- 1. IMPORTAMOS EL MODAL
 
 export default function FeedbackButton() {
   const [isOpen, setIsOpen] = useState(false);
   const [type, setType] = useState('sugerencia');
   const [message, setMessage] = useState('');
-  const [status, setStatus] = useState('idle'); // 'idle', 'sending', 'success', 'error'
+  const [status, setStatus] = useState('idle');
+  const [modalInfo, setModalInfo] = useState({ isOpen: false, title: '', message: '' }); // <-- 2. AÑADIMOS ESTADO
   const location = useLocation();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (message.trim().length < 10) {
-      alert("Por favor, danos un poco más de detalle (mínimo 10 caracteres).");
+      // --- SUSTITUIMOS EL ALERT ---
+      setModalInfo({ isOpen: true, title: 'Mensaje Demasiado Corto', message: 'Por favor, danos un poco más de detalle (mínimo 10 caracteres).' });
       return;
     }
 
@@ -29,7 +31,7 @@ export default function FeedbackButton() {
       setMessage('');
       setTimeout(() => {
         setIsOpen(false);
-        setStatus('idle'); // Resetear para la próxima vez que se abra
+        setStatus('idle');
       }, 2000);
     } catch (error) {
       setStatus('error');
@@ -39,6 +41,9 @@ export default function FeedbackButton() {
 
   return (
     <>
+      {/* --- 3. RENDERIZAMOS EL MODAL --- */}
+      <NotificationModal {...modalInfo} onClose={() => setModalInfo({ isOpen: false, title: '', message: '' })} />
+
       {/* Botón Flotante */}
       <button 
         onClick={() => setIsOpen(true)}

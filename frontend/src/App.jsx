@@ -4,7 +4,7 @@ import { AuthProvider } from './contexts/AuthContext';
 import { TestExitProvider } from './contexts/TestExitContext';
 import PrivateRoute from './components/PrivateRoute';
 import MainLayout from './components/MainLayout';
-import AdminFeedback from './pages/AdminFeedback';
+
 
 // Pages
 import Login from './pages/Login';
@@ -16,6 +16,9 @@ import TestDetail from './pages/TestDetail';
 import AdminUsers from './pages/AdminUsers';
 import AdminQuestions from './pages/AdminQuestions';
 import AttemptsHistory from './pages/AttemptsHistory';
+import AdminFeedback from './pages/AdminFeedback';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
 import Test from './pages/Test';
 
 export default function App() {
@@ -30,6 +33,8 @@ export default function App() {
             {/* Estas rutas se renderizan directamente, sin pasar por el MainLayout */}
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password/:token" element={<ResetPassword />} />
 
             {/* --- ZONA PRIVADA (Con Sidebar) --- */}
             {/* Esta ruta "padre" aplica el MainLayout a todas las rutas que contiene */}

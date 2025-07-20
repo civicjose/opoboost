@@ -4,13 +4,10 @@ const bcrypt   = require('bcrypt');
 
 const UserSchema = new mongoose.Schema({
   name:       { type: String, required: true },
-  email:      { type: String, required: true, unique: true },
+  email:      { type: String, required: true, unique: true, lowercase: true },
   password:   { type: String, required: true },
   role:       { type: String, enum: ['alumno','profesor','administrador'], default: 'alumno' },
   validated:  { type: Boolean, default: false },
-  
-  // --- CAMBIO CLAVE ---
-  // Añadimos "default: []" para que el campo siempre exista.
   accessibleCategories: {
     type: [{
         type: mongoose.Schema.Types.ObjectId,
@@ -18,7 +15,8 @@ const UserSchema = new mongoose.Schema({
     }],
     default: []
   },
-
+  resetPasswordToken:   { type: String },
+  resetPasswordExpires: { type: Date },
   createdAt:  { type: Date, default: Date.now }
 });
 
